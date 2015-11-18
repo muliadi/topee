@@ -1,0 +1,18 @@
+{
+    "devel":{
+        "database":{
+            "main":"host=192.168.100.126 user=aa150901 password='!@#123QWEqwe' dbname=tokopedia-dev-db sslmode=disable",
+            "product":"host=192.168.100.126 user=aa150901 password='!@#123QWEqwe' dbname=tokopedia-dev-db-2 sslmode=disable"
+        },
+        "mongo":{
+            "product":"mongodb://192.168.100.16:27017, mongodb://192.168.100.15:27017, mongodb://192.168.100.14:27017"
+        },
+        "redis":{
+            "redis_12_3":{
+                "host":"devel-redis.tkpd",
+                "port":"6379"
+            }
+        },
+        "port":"8000"
+    }
+}
