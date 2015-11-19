@@ -7,6 +7,8 @@ import (
     "gopkg.in/mgo.v2"
     "log"
     "fmt"
+    "encoding/json"
+    "os"
     // "reflect"
     // "time"
     // "strconv"
@@ -15,13 +17,28 @@ import (
 var db *sqlx.DB
 var db_product *sqlx.DB
 var mgo_prod *mgo.Session
-var redisconn *map[string]Redis
+var redisconn map[string]Redis
+var config Config
 
 func init(){
     InitConfig()
     InitDb(config.Database["main"], config.Database["product"])
     InitMongo(config.Mongo["product"])
     InitRedis(config.Redis)
+}
+
+func InitConfig(){
+    file, err := os.Open("config/conf.json")
+    if err != nil {
+      fmt.Println("error open json:", err)
+    }
+    decoder := json.NewDecoder(file)
+    configuration := map[string]Config{}
+    err = decoder.Decode(&configuration)
+    if err != nil {
+      fmt.Println("error decode json:", err)
+    }
+    config = configuration["devel"]
 }
 
 func InitDb(mainDB string, productDB string) {
@@ -43,7 +60,7 @@ func InitMongo(mongo_product string){
 }
 
 func InitRedis(redismap map[string]Redis){
-    redisconn = &redismap
+    redisconn = redismap
 }
 
 func checkErr(err error, msg string) {
