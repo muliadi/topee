@@ -12,59 +12,59 @@ func ValidateInput(product *ProductInput) ([]Error){
     var errors []Error
     var error Error
     
-    if CheckUserId(product.User_id) == false{
+    if CheckUserId(product.UserId) == false{
         error.Code      = "400"
         error.Message   = "user_id is invalid"
         errors = append(errors, error)
     }
     
-    if len(product.Product_name) < 1{
+    if len(product.ProductName) < 1 || len(product.ProductName) > 70{
         error.Code      = "400"
-        error.Message   = "Product name must not empty"
+        error.Message   = "Product name must not empty and max 70 character"
         errors = append(errors, error)
     }
-    if CheckProductName(product.Product_name) == false{
+    if CheckProductName(product.ProductName) == false{
         error.Code      = "400"
         error.Message   = "Product name must contains alphanumeric"
         errors = append(errors, error)
     }
     
-    if product.Shop_id == 0 {
+    if product.ShopId == 0 {
         error.Code      = "400"
         error.Message   = "Shop id is required"
         errors = append(errors, error)
-    } else if CheckShopId(product.Shop_id) == false {
+    } else if CheckShopId(product.ShopId) == false {
         error.Code      = "400"
         error.Message   = "Shop id invalid"
         errors = append(errors, error)
     }
     
-    if product.Child_cat_id == 0 {
+    if product.ChildCatId == 0 {
         error.Code      = "400"
         error.Message   = "Category id is required"
         errors = append(errors, error)
-    } else if CheckCategoryId(product.Child_cat_id) == false {
+    } else if CheckCategoryId(product.ChildCatId) == false {
         error.Code      = "400"
         error.Message   = "Category id invalid"
         errors = append(errors, error)
     }
     
-    if product.Min_order < 1 {
+    if product.MinOrder < 1 {
         error.Code      = "400"
         error.Message   = "Minimum order is required and must be greater than 0"
         errors = append(errors, error)
     }
     
     //set default price currency to IDR if not set
-    if product.Price_currency == 0 {
-        product.Price_currency = 1
-    } else if product.Price_currency != 1 && product.Price_currency != 2{
+    if product.PriceCurrency == 0 {
+        product.PriceCurrency = 1
+    } else if product.PriceCurrency != 1 && product.PriceCurrency != 2{
         error.Code      = "400"
         error.Message   = "Price currency is not valid"
         errors = append(errors, error)
     }
     
-    if product.Normal_price < 100 || product.Normal_price > 50000000 {
+    if product.NormalPrice < 100 || product.NormalPrice > 50000000 {
         error.Code      = "400"
         error.Message   = "Normal price must between 100 to 50.000.000"
         errors = append(errors, error)
@@ -104,13 +104,27 @@ func ValidateInput(product *ProductInput) ([]Error){
         errors = append(errors, error)
     }
     
-    if product.Add_to_etalase != 0 && product.Add_to_etalase !=1{
+    if product.AddToEtalase != 0 && product.AddToEtalase !=1{
         error.Code      = "400"
         error.Message   = "add_to_etalase value is not valid"
         errors = append(errors, error)
-    } else if product.Add_to_etalase == 1 && CheckEtalaseId(product.Etalase_id, product.Shop_id) == false{
+    } else if product.AddToEtalase == 1 && CheckEtalaseId(product.EtalaseId, product.ShopId) == false{
         error.Code      = "400"
         error.Message   = "etalase_id is invalid"
+        errors = append(errors, error)
+    }
+    
+    //validasi product status
+    if product.Status != 0 && product.Status !=1 && product.Status !=2 && product.Status !=3 && product.Status !=-1 && product.Status !=-2{
+        error.Code      = "400"
+        error.Message   = "product_status value is not valid"
+        errors = append(errors, error)
+    }
+    
+    //validasi product returnable
+    if product.Returnable != 0 && product.Returnable !=1{
+        error.Code      = "400"
+        error.Message   = "returnable value is not valid"
         errors = append(errors, error)
     }
     
@@ -125,7 +139,7 @@ func ValidateInput(product *ProductInput) ([]Error){
 
     if len(product.Wholesale) > 0{
         var whole_bool bool
-        whole_bool, product.Wholesale = ValidateWholesale(product.Wholesale, product.Normal_price)
+        whole_bool, product.Wholesale = ValidateWholesale(product.Wholesale, product.NormalPrice)
         
         if whole_bool == false{
             error.Code      = "400"
