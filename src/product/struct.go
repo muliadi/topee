@@ -40,7 +40,6 @@ type ProductInput struct{
     ProductName     string          `json:"name"`
     ShopId          int64           `json:"shop_id"`
     ChildCatId      int64           `json:"category_id"`
-    CatalogId       int64           `json:"catalog_id"`
     ShortDesc       string          `json:"description"`
     MinOrder        int64           `json:"min_order"`
     PriceCurrency   int64           `json:"price_currency"` // 1=IDR 2=USD
@@ -51,12 +50,14 @@ type ProductInput struct{
     Insurance       int64           `json:"must_insurance"` // 0=no 1=yes
     AddToEtalase    int64           `json:"add_to_etalase"` // 0=no 1=yes
     EtalaseId       int64           `json:"etalase_id"`
+    AddToCatalog    int64           `json:"add_to_catalog"`
+    CatalogId       int64           `json:"catalog_id"`
     Condition       int64           `json:"condition"`      // 1=baru 2=bekas
     Returnable      int64           `json:"returnable"`     // 0=no 1=yes
     Wholesale       WsPrices        `json:"wholesale"`
     
-    PendingReason   string          `json:-`
-    PendingStatus   int64           `json:-`
+    PendingReason   string          `json:"-"`
+    PendingStatus   int64           `json:"-"`
 }
 
 type ProductWeight struct{

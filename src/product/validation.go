@@ -104,6 +104,7 @@ func ValidateInput(product *ProductInput) ([]Error){
         errors = append(errors, error)
     }
     
+    //etalase
     if product.AddToEtalase != 0 && product.AddToEtalase !=1{
         error.Code      = "400"
         error.Message   = "add_to_etalase value is not valid"
@@ -111,6 +112,17 @@ func ValidateInput(product *ProductInput) ([]Error){
     } else if product.AddToEtalase == 1 && CheckEtalaseId(product.EtalaseId, product.ShopId) == false{
         error.Code      = "400"
         error.Message   = "etalase_id is invalid"
+        errors = append(errors, error)
+    }
+    
+    //catalog
+    if product.AddToCatalog != 0 && product.AddToCatalog !=1{
+        error.Code      = "400"
+        error.Message   = "add_to_catalog value is not valid"
+        errors = append(errors, error)
+    } else if product.AddToCatalog == 1 && CheckCatalogId(product.CatalogId, product.ChildCatId) == false{
+        error.Code      = "400"
+        error.Message   = "catalog_id is invalid"
         errors = append(errors, error)
     }
     
@@ -182,6 +194,17 @@ func ValidateWholesale(wsprices WsPrices, normal_price int64) (bool, WsPrices){
 func CheckCategoryId(id int64) bool{
     var count int
     row := db.QueryRow("SELECT count(d_id) FROM ws_department WHERE d_id=$1 OR parent = $2", id, id)
+    row.Scan(&count)
+    if count == 1{
+        return true
+    } else {
+        return false
+    }
+}
+
+func CheckCatalogId(cat_id int64, dep_id int64) bool{
+    var count int
+    row := db.QueryRow("SELECT count(ctg_id) FROM ws_catalog WHERE ctg_id=$1 AND d_id=$2 AND status=1", cat_id, dep_id)
     row.Scan(&count)
     if count == 1{
         return true

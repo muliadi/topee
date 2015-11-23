@@ -14,6 +14,8 @@ import (
 
 var db *sqlx.DB
 var db_product *sqlx.DB
+var db_cron *sqlx.DB
+
 var mgo_prod *mgo.Session
 var redisconn RedisStruct
 var config Config
@@ -25,20 +27,24 @@ func InitConfig(env string){
     err := gcfg.ReadFileInto(&config, filepath)
     checkErr(err, "Connect Failed")
     
-    InitDb(config.Postgres.Main, config.Postgres.Product)
+    InitDb(config.Postgres)
     InitMongo(config.Mongo.Product)
     InitRedis(config.Redis)
     InitBlacklistRule()
 }
 
-func InitDb(mainDB string, productDB string) {
-    dbconn, err := sqlx.Open("postgres", mainDB)
+func InitDb(DBConn PgStruct) {
+    dbconn, err := sqlx.Open("postgres", DBConn.Main)
     checkErr(err, "Connect MainDB Failed")
     db = dbconn
     
-    dbProd, err := sqlx.Open("postgres", productDB)
+    dbProd, err := sqlx.Open("postgres", DBConn.Product)
     checkErr(err, "Connect ProductDB Failed")
     db_product = dbProd
+    
+    dbCron, err := sqlx.Open("postgres", DBConn.Cron)
+    checkErr(err, "Connect ProductDB Failed")
+    db_cron = dbCron
 }
 
 func InitMongo(mongo_product string){
@@ -84,6 +90,7 @@ type Config struct {
 type PgStruct struct {
     Main        string
     Product     string
+    Cron        string
 }
 
 type MongoStruct struct{
@@ -93,4 +100,6 @@ type MongoStruct struct{
 type RedisStruct struct{
     Redis_12_3  string
     Redis_89_5  string
+    Redis_89_2  string
+    Redis_22_6  string
 }

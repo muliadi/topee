@@ -24,10 +24,10 @@ func CheckBlacklist(text string, blacklist_type int) (bool, string){
     tmatch := re.FindStringSubmatch(text)
     
     if len(tmatch) > 0{
-        return false, ""
+        return true, ""
     } else {
         match_words := strings.Join(tmatch, ",")
-        return true, match_words
+        return false, match_words
     }
 }
 

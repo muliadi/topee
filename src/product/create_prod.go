@@ -1,7 +1,7 @@
 package product
 
 import(
-   
+    "bytes"
     "fmt"
     "time"
     "strconv"
@@ -35,6 +35,19 @@ func CreateProduct(input *ProductInput){
     //insert product into ws_product
     input.ProductId = InsertProduct(input)
     
+    //add to etalase
+    if input.AddToEtalase == 1 && input.Status != -1 && input.Status != -2 && input.Status != 3 {
+        AddToEtalase(input.ProductId, input.EtalaseId)
+    }
+    
+    //add to catalog
+    //first check blacklist for catalog
+    res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
+    res_ctg_prd_name, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
+    if res_ctg_prd_name==false && res_ctg_prd_desc==false {
+        AddToCatalog(input)
+    }
+    
     //create product alias
     CreateAlias(input.ProductId, input.ProductName, input.ShopId)
     
@@ -49,17 +62,30 @@ func CreateProduct(input *ProductInput){
     //set product returnable
     UpsertReturnable(input.ProductId, input.ShopId, input.Returnable)
     
-    //insert product data to mongoDB
-    UpsertProductList(input)
-    
     //add to redis sitemap
     AddSitemapProduct(input.ProductId)
     
     //upsert product pending reason
     if input.Status == -1 || input.Status == -2 {
         UpsertPendingReason(input)
-    } 
+    }
     
+    //set product stat redis
+    var datamap = map[string]string{
+        "count_review"      : "0",
+        "count_talk"        : "0",
+        "count_sold"        : "0",
+        "rating"            : "0",
+        "count_tx_success"  : "0",
+        "count_tx_reject"   : "0",
+        "count_view"        : "0",
+    }
+    SetProductStatRedis(input.ProductId, datamap)
+    
+    //insert product data to mongoDB
+    UpsertProductList(input)
+    
+    AddBroadcast(input.ProductId, input.ShopId)
 }
 
 // MAX POSITION FUNCTION - START
@@ -143,6 +169,41 @@ func InsertProduct(product *ProductInput) int64{
     } else {
         return product_id
     }
+}
+
+func AddToEtalase(prod_id int64, menu_id int64){
+    buff := bytes.NewBufferString(`
+        INSERT INTO ws_product_menu (
+            product_id,
+            menu_id
+        ) VALUES ($1, $2)
+    `)
+    
+    query := db.Rebind(buff.String())
+    db.MustExec(query, prod_id, menu_id)
+}
+
+func AddToCatalog(product *ProductInput){
+    buff := bytes.NewBufferString(`
+        INSERT INTO ws_catalog_product (
+            ctg_id,
+            product_id,
+            shop_id,
+            status,
+            create_by,
+            create_time
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+    `)
+    
+    query := db.Rebind(buff.String())
+    db.MustExec(
+        query,
+        product.CatalogId,
+        product.ProductId,
+        product.ShopId,
+        1,
+        product.UserId,
+        Now())
 }
 
 func CreateAlias(prod_id int64, prod_name string, shop_id int64){
@@ -395,6 +456,60 @@ func AddSitemapProduct(prod_id int64){
     }
     
     rds.ZAdd("sitemap:product", value)
+}
+
+func InsertCron(prod_id int64, cron_type string){
+    buff := bytes.NewBufferString(`
+        INSERT INTO ws_cron_job (
+            id,
+            type,
+            status,
+            create_time
+        ) VALUES ($1, $2, 1, $3)
+    `)
+    
+    query := db_cron.Rebind(buff.String())
+    db_cron.MustExec(query, prod_id, cron_type, Now())
+}
+
+func SetProductStatRedis(prod_id int64, data map[string]string){
+    rds := redis.NewClient(&redis.Options{
+        Addr        : redisconn.Redis_89_2,
+        Password    : "", // no password set
+        DB          : 0,  // use default DB
+    })
+    
+    var key string = "product_stats_hash:"+strconv.FormatInt(prod_id, 16)
+    for field, value := range data {
+        rds.HMSet(key, field, value)
+    }
+}
+
+func AddBroadcast(prod_id int64, shop_id int64){
+    rds := redis.NewClient(&redis.Options{
+        Addr        : redisconn.Redis_22_6,
+        Password    : "", // no password set
+        DB          : 0,  // use default DB
+    })
+    
+    //list:feed_product
+    value := redis.Z{
+        Score       : float64(time.Now().Unix()),
+        Member      : prod_id,
+    }
+    rds.ZAdd("list:feed_product:"+strconv.FormatInt(shop_id, 16), value)
+    
+    //fave_product_broadcast
+    keymap := map[int]string{
+        1 : "fave_product_broadcast:p1",
+        2 : "fave_product_broadcast:p2",
+        3 : "fave_product_broadcast:p3",
+    }
+    key := keymap[(int(prod_id) % 3)+1]
+    
+    shop_prod := strconv.FormatInt(shop_id, 16)+"-"+strconv.FormatInt(prod_id, 16)
+    rds.LRem(key, 0, shop_prod)
+    rds.LPush(key, shop_prod)
 }
 
 func Now() string{
