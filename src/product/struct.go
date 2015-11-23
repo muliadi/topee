@@ -54,6 +54,9 @@ type ProductInput struct{
     Condition       int64           `json:"condition"`      // 1=baru 2=bekas
     Returnable      int64           `json:"returnable"`     // 0=no 1=yes
     Wholesale       WsPrices        `json:"wholesale"`
+    
+    PendingReason   string          `json:-`
+    PendingStatus   int64           `json:-`
 }
 
 type ProductWeight struct{
@@ -148,4 +151,16 @@ type ProductListMongo struct{
     Status          int64           `bson:"status"`
     TempCategory    int64           `bson:"temp_category"`
     UpdateTime      int64           `bson:"update_time"`
+}
+
+
+//==============================================================================
+//  STRUCT FOR BLACKLIST
+//==============================================================================
+type Blacklist struct{
+    Id              int64           `db:"blacklist_id"`
+    Value           string          `db:"blacklist_value"`
+    Type            int64           `db:"blacklist_type"`
+    Reason          string          `db:"blacklist_reason"`
+    Status          int64           `db:"blacklist_status"`
 }

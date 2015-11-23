@@ -12,6 +12,26 @@ import(
 )
 
 func CreateProduct(input *ProductInput){
+        
+    //filter blacklist
+    if res, word:=CheckBlacklist(input.ProductName, BlacklistRule["PRD_RULE_BAN_KEYWORD"]); res == true {
+        input.Status = -2
+        input.PendingReason = "Warned Product Description because keyword " + word
+        input.PendingStatus = 1
+    } else if res, word:=CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_BAN_KEYWORD"]); res == true {
+        input.Status = -2
+        input.PendingReason = "Warned Product Description because keyword " + word
+        input.PendingStatus = 2
+    } else if res, word:=CheckBlacklist(input.ProductName, BlacklistRule["PRD_RULE_WARN_KEYWORD"]); res == true {
+        input.Status = -1
+        input.PendingReason = "Warned Product Description because keyword " + word
+        input.PendingStatus = 1
+    } else if res, word:=CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_WARN_KEYWORD"]); res == true {
+        input.Status = -1
+        input.PendingReason = "Warned Product Description because keyword " + word
+        input.PendingStatus = 2
+    }
+    
     //insert product into ws_product
     input.ProductId = InsertProduct(input)
     
@@ -34,6 +54,12 @@ func CreateProduct(input *ProductInput){
     
     //add to redis sitemap
     AddSitemapProduct(input.ProductId)
+    
+    //upsert product pending reason
+    if input.Status == -1 || input.Status == -2 {
+        UpsertPendingReason(input)
+    } 
+    
 }
 
 // MAX POSITION FUNCTION - START

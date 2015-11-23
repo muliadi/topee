@@ -12,6 +12,7 @@ import(
 
 func Ping(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
     w.Write([]byte("Pong"))
+    CheckBlacklist("ini adalah produk dengan kata asdasdasd didalamnya", 4)
     //TODO: Health check, as in https://github.com/tokopedia/search-microservice/blob/master/app.go#L33
 }
 
