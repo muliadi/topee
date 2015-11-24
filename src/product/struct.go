@@ -154,6 +154,35 @@ type ProductListMongo struct{
     UpdateTime      int64           `bson:"update_time"`
 }
 
+type UserLog struct{
+    Id              bson.ObjectId   `bson:"_id,omitempty"`
+    CreateTime      int64           `bson:"create_time"`
+    Action          int64           `bson:"action"`
+    ProductId       int64           `bson:"id"`
+    UserId          int64           `bson:"user_id"`
+    IpAddress       string          `bson:"ip_address"`
+    Device          int64           `bson:"device"`
+}
+
+type ProductHistory struct{
+    Id              bson.ObjectId   `bson:"_id,omitempty"`
+    PriceCurrency   int64           `bson:"price_currency"`
+    CreateBy        int64           `bson:"create_by"`
+    Status          int64           `bson:"status"`
+    CreateTime      int64           `bson:"create_time"`
+    MinOrder        int64           `bson:"min_order"`
+    MustInsurance   string          `bson:"must_insurance,omitempty"`
+    WeightUnit      int64           `bson:"weight_unit"`
+    ProductId       int64           `bson:"product_id"`
+    NormalPrice     int64           `bson:"normal_price"`
+    Weight          float64         `bson:"weight"`
+    ShortDesc       string          `bson:"short_desc"`
+    ChildCatId      int64           `bson:"child_cat_id"`
+    ProductName     string          `bson:"product_name"`
+    Position        int64           `bson:"position,omitempty"`
+    Condition       int64           `bson:"condition,omitempty"`
+    Returnable      int64           `bson:"returnable,omitempty"`
+}
 
 //==============================================================================
 //  STRUCT FOR BLACKLIST

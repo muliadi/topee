@@ -46,6 +46,9 @@ func CreateProduct(input *ProductInput){
     res_ctg_prd_name, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
     if res_ctg_prd_name==false && res_ctg_prd_desc==false {
         AddToCatalog(input)
+        
+        //insert cron price alert if product is in catalog
+        InsertCron(input.ProductId, "price_alert_catalog")
     }
     
     //create product alias
@@ -85,7 +88,11 @@ func CreateProduct(input *ProductInput){
     //insert product data to mongoDB
     UpsertProductList(input)
     
+    //add to broadcast
     AddBroadcast(input.ProductId, input.ShopId)
+    
+    //add user log with action add product
+    AddProductLog(input.ProductId, input.UserId)
 }
 
 // MAX POSITION FUNCTION - START
@@ -510,6 +517,45 @@ func AddBroadcast(prod_id int64, shop_id int64){
     shop_prod := strconv.FormatInt(shop_id, 16)+"-"+strconv.FormatInt(prod_id, 16)
     rds.LRem(key, 0, shop_prod)
     rds.LPush(key, shop_prod)
+}
+
+func AddProductLog(prod_id int64, user_id int64){
+    cmgo := mgo_prod.DB("product_dev").C("user_dev")
+    
+    log := &UserLog{
+        CreateTime      : time.Now().Unix(),
+        Action          : 4,
+        IpAddress       : "",
+        ProductId       : prod_id,
+        UserId          : user_id,
+        Device          : 0,
+    }
+    
+    err := cmgo.Insert(log)
+    checkErr(err, "Fail create user log in mongodb")
+}
+
+func AddProductHistory(product *ProductInput){
+    cmgo := mgo_prod.DB("tkpd_dev").C("product_history")
+    
+    history := &ProductHistory{
+        ProductName     : product.ProductName,
+        ShortDesc       : product.ShortDesc,
+        ChildCatId      : product.ChildCatId,
+        PriceCurrency   : product.PriceCurrency,
+        NormalPrice     : product.NormalPrice,
+        MinOrder        : product.MinOrder,
+        Weight          : product.Weight.Numeric,
+        WeightUnit      : product.Weight.Unit,
+        Status          : product.Status,
+    }
+    
+    if product.Insurance == 1 {
+        history.MustInsurance = "on"
+    }
+    
+    err := cmgo.Insert(history)
+    checkErr(err, "Fail create product_history log in mongodb")
 }
 
 func Now() string{
