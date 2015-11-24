@@ -36,20 +36,27 @@ func CreateProduct(input *ProductInput){
     //insert product into ws_product
     input.ProductId = InsertProduct(input)
     
+    //upsert product pending reason
+    if input.Status == -1 || input.Status == -2 {
+        UpsertPendingReason(input)
+    }
+    
     //add to etalase
     if input.AddToEtalase == 1 && input.Status != -1 && input.Status != -2 && input.Status != 3 {
         AddToEtalase(input.ProductId, input.EtalaseId)
     }
     
     //add to catalog
-    //first check blacklist for catalog
-    res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
-    res_ctg_prd_name, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
-    if res_ctg_prd_name==false && res_ctg_prd_desc==false {
-        AddToCatalog(input)
-        
-        //insert cron price alert if product is in catalog
-        InsertCron(input.ProductId, "price_alert_catalog")
+    if input.AddToCatalog == 1 {
+        //first check blacklist for catalog
+        res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
+        res_ctg_prd_name, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
+        if res_ctg_prd_name==false && res_ctg_prd_desc==false {
+            AddToCatalog(input)
+            
+            //insert cron price alert if product is in catalog
+            InsertCron(input.ProductId, "price_alert_catalog")
+        }
     }
     
     //create product alias
@@ -68,11 +75,6 @@ func CreateProduct(input *ProductInput){
     
     //add to redis sitemap
     AddSitemapProduct(input.ProductId)
-    
-    //upsert product pending reason
-    if input.Status == -1 || input.Status == -2 {
-        UpsertPendingReason(input)
-    }
     
     //set product stat redis
     var datamap = map[string]string{
@@ -94,6 +96,9 @@ func CreateProduct(input *ProductInput){
     
     //add user log with action add product
     AddProductLog(input.ProductId, input.UserId)
+    
+    //add product history
+    AddProductHistory(input)
     
     //scan any phone number in description and insert to mongo for security team to use it later
     ScanPhoneNumber(input.ShortDesc, input.ProductId)
