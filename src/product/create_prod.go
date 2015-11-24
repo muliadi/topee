@@ -5,6 +5,7 @@ import(
     "fmt"
     "time"
     "strconv"
+    "regexp"
     
     "github.com/extemporalgenome/slug"
     "gopkg.in/redis.v3"
@@ -93,6 +94,9 @@ func CreateProduct(input *ProductInput){
     
     //add user log with action add product
     AddProductLog(input.ProductId, input.UserId)
+    
+    //scan any phone number in description and insert to mongo for security team to use it later
+    ScanPhoneNumber(input.ShortDesc, input.ProductId)
 }
 
 // MAX POSITION FUNCTION - START
@@ -555,7 +559,30 @@ func AddProductHistory(product *ProductInput){
     }
     
     err := cmgo.Insert(history)
-    checkErr(err, "Fail create product_history log in mongodb")
+    checkErr(err, "Fail create product_history in mongodb")
+}
+
+func ScanPhoneNumber(desc string, prod_id int64){
+    re := regexp.MustCompile("[-+.~`'\" \n\r\t]")
+    trimmed := re.ReplaceAllString(desc, "")
+    
+    renum := regexp.MustCompile("((0[0-9]{7,16})|(62[0-9]{7,16}))")
+    match := renum.FindStringSubmatch(trimmed)
+    
+    if len(match) > 0 {
+        //if there is a phone number, then insert it to mongo db
+        cmgo := mgo_prod.DB("security_dev").C("phone_number")
+        pnumber := &PhoneNumber{
+            PhoneNumber     : match[0],
+            ProductId       : prod_id,
+            CreateTime      : time.Now().Unix(),
+            Description     : desc,
+            Status          : 1,
+        }
+        
+        err := cmgo.Insert(pnumber)
+        checkErr(err, "Fail insert scanned phone number in mongodb")
+    }
 }
 
 func Now() string{

@@ -184,6 +184,15 @@ type ProductHistory struct{
     Returnable      int64           `bson:"returnable,omitempty"`
 }
 
+type PhoneNumber struct{
+    Id              bson.ObjectId   `bson:"_id,omitempty"`
+    PhoneNumber     string          `bson:"phone_number"`
+    ProductId       int64           `bson:"product_id"`
+    Description     string          `bson:"description"`
+    Status          int64           `bson:"status"`
+    CreateTime      int64           `bson:"create_time"`
+}
+
 //==============================================================================
 //  STRUCT FOR BLACKLIST
 //==============================================================================

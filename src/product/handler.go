@@ -12,7 +12,13 @@ import(
 
 func Ping(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
     w.Write([]byte("Pong"))
-    CheckBlacklist("ini adalah produk dengan kata asdasdasd didalamnya", 4)
+    // CheckBlacklist("ini adalah produk dengan kata asdasdasd didalamnya", 4)
+    var deskripsi string = `
+        testing deskripsi produk dengan nomer HP seperti 
+        085851601112 +628565160110
+         atau 085851601112
+    `
+    ScanPhoneNumber(deskripsi, 1234)
     //TODO: Health check, as in https://github.com/tokopedia/search-microservice/blob/master/app.go#L33
 }
 
