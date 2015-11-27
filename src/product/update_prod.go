@@ -69,19 +69,19 @@ func UpdateProduct(input *ProductInput, current *ProductInput){
         UpsertPendingReason(input)
     }
     
-    // if catalog is changed
-    // if input.AddToCatalog == 0{
-    //     //remove from catalog
-    //     RemoveFromCatalog(input.ProductId)
-    // } else {
-    //     //move to another catalog
-    //     RemoveFromCatalog(input.ProductId)
-    //     res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
-    //     if res_ctg_prd_desc==false {
-    //         AddToCatalog(input)
-    //         UpdateCron(input.ProductId, "price_alert_catalog")
-    //     }
-    // }
+    if catalog is changed
+    if input.AddToCatalog == 0{
+        //remove from catalog
+        RemoveFromCatalog(input.ProductId)
+    } else {
+        //move to another catalog
+        RemoveFromCatalog(input.ProductId)
+        res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
+        if res_ctg_prd_desc==false {
+            AddToCatalog(input)
+            UpdateCron(input.ProductId, "price_alert_catalog")
+        }
+    }
     
     //add to etalase
     if input.AddToEtalase == 1 && input.Status != -1 && input.Status != -2 && input.Status != 3 {
