@@ -114,7 +114,7 @@ func CreateProduct(input *ProductInput){
     AddProductLog(input.ProductId, input.UserId)
     
     //add product history
-    // AddProductHistory(input)
+    AddProductHistory(input)
     
     //scan any phone number in description and insert to mongo for security team to use it later
     ScanPhoneNumber(input.ShortDesc, input.ProductId)
@@ -354,7 +354,7 @@ func AddWholesalePrice(product *ProductInput){
                 qty_max_5   = $15,
                 prd_prc_5   = $16
             WHERE
-                product_id      = $17,
+                product_id      = $17
                 AND prd_prc_id  = $18
         `)
         query := db.Rebind(buff.String())

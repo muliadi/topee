@@ -1,11 +1,12 @@
 package product
 
 import(
-    "fmt"
+    // "fmt"
     "bytes"
     "sort"
     "regexp"
     "strconv"
+    "time"
     // "errors"
     // "net/http"
     // "log"
@@ -293,7 +294,7 @@ func CheckProductId(prod_id int64) (bool, error){
     
     query := db.Rebind(buff.String())
     err := db.QueryRow(query, prod_id).Scan(&res)
-    fmt.Println(res)
+    // fmt.Println(res)
     if res == prod_id {
         return true, err
     } else {
@@ -318,7 +319,8 @@ func GetProductById(prod_id int64) (ProductInput, error){
             must_insurance,
             condition,
             weight_unit,
-            weight
+            weight,
+            last_update_price
         FROM ws_product
         WHERE product_id = $1 LIMIT 1
     `)
@@ -326,6 +328,7 @@ func GetProductById(prod_id int64) (ProductInput, error){
     row := db.QueryRow(query, prod_id)
     
     var normal_price string
+    var lastprc time.Time
     
     err := row.Scan(
         &prd.ProductId,
@@ -341,12 +344,14 @@ func GetProductById(prod_id int64) (ProductInput, error){
         &prd.Insurance,
         &prd.Condition,
         &prd.Weight.Unit,
-        &prd.Weight.Numeric)
+        &prd.Weight.Numeric,
+        &lastprc)
+    
+    prd.LastPrcUpdate = lastprc.String()
     
     prd.NormalPrice, _ = strconv.ParseInt(normal_price, 10, 64)
     
     if err != nil{
-        fmt.Println(err)
         return ProductInput{}, err
     } else {
         return prd, nil
@@ -358,6 +363,8 @@ func ValidateUpdate(product *ProductInput) (ProductInput, []Error, error){
     var errors []Error
     var error Error
     var current_prod ProductInput
+    
+    var changes int64 = 0
     
     //validate product id
     res, err := CheckProductId(product.ProductId)
@@ -384,6 +391,7 @@ func ValidateUpdate(product *ProductInput) (ProductInput, []Error, error){
                 error.Message           = "Category id invalid"
                 errors = append(errors, error)
             }
+            changes++
         }
         
         //if price currency is updated
@@ -444,7 +452,7 @@ func ValidateUpdate(product *ProductInput) (ProductInput, []Error, error){
                 error.Source.Pointer    = "/data/attributes/add_to_etalase"
                 error.Message           = "add_to_etalase value is not valid"
                 errors = append(errors, error)
-            } else if product.AddToEtalase == 1 && CheckEtalaseId(product.EtalaseId, product.ShopId) == false{
+            } else if product.AddToEtalase == 1 && CheckEtalaseId(product.EtalaseId, current_prod.ShopId) == false{
                 // error.Code              = "400"
                 error.Source.Pointer    = "/data/attributes/etalase_id"
                 error.Message           = "etalase_id is invalid"

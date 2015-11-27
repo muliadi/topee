@@ -59,6 +59,7 @@ type ProductInput struct{
     
     PendingReason   string          `json:"-"               db:"-"`
     PendingStatus   int64           `json:"-"               db:"-"`
+    LastPrcUpdate   string          `json:"-"               db:"-"`
 }
 
 type ProductWeight struct{

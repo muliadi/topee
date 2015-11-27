@@ -4,15 +4,18 @@ import(
     "bytes"
     // "fmt"
     // "time"
-    // "strconv"
+    "strconv"
     // "regexp"
     
     // "github.com/extemporalgenome/slug"
-    // "gopkg.in/redis.v3"
+    "gopkg.in/redis.v3"
     // "gopkg.in/mgo.v2/bson"
 )
 
 func UpdateProduct(input *ProductInput, current *ProductInput){
+    
+    //set initial status
+    input.Status = current.Status
     
     //filter blacklist if desc is updated
     if input.ShortDesc != ""{
@@ -66,19 +69,19 @@ func UpdateProduct(input *ProductInput, current *ProductInput){
         UpsertPendingReason(input)
     }
     
-    //if catalog is changed
-    if input.AddToCatalog == 0{
-        //remove from catalog
-        RemoveFromCatalog(input.ProductId)
-    } else {
-        //move to another catalog
-        RemoveFromCatalog(input.ProductId)
-        res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
-        if res_ctg_prd_desc==false {
-            AddToCatalog(input)
-            UpdateCron(input.ProductId, "price_alert_catalog")
-        }
-    }
+    // if catalog is changed
+    // if input.AddToCatalog == 0{
+    //     //remove from catalog
+    //     RemoveFromCatalog(input.ProductId)
+    // } else {
+    //     //move to another catalog
+    //     RemoveFromCatalog(input.ProductId)
+    //     res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
+    //     if res_ctg_prd_desc==false {
+    //         AddToCatalog(input)
+    //         UpdateCron(input.ProductId, "price_alert_catalog")
+    //     }
+    // }
     
     //add to etalase
     if input.AddToEtalase == 1 && input.Status != -1 && input.Status != -2 && input.Status != 3 {
@@ -96,9 +99,21 @@ func UpdateProduct(input *ProductInput, current *ProductInput){
         UpsertReturnable(input.ProductId, input.ShopId, input.Returnable)
     }
     
+    //insert product data to mongoDB
+    UpsertProductList(input)
+    
+    //add product history
+    AddProductHistory(input)
+    
     //scan any phone number in description and insert to mongo for security team to use it later
     ScanPhoneNumber(input.ShortDesc, input.ProductId)
     
+    UpdateWsProduct(input, current)
+    
+    delete_redis("dir_product:view_list:p_"+strconv.FormatInt(input.ProductId, 16))
+    delete_redis("dir_product:view_gallery:p_"+strconv.FormatInt(input.ProductId, 16))
+    delete_redis("class:product:p_"+strconv.FormatInt(input.ProductId, 16))
+
 }
 
 
@@ -107,17 +122,17 @@ func RemoveFromCatalog(prod_id int64){
         UPDATE ws_catalog_product 
         SET 
             status = 0,
-            update_time = $1,
+            update_time = $1
         WHERE
-            product_id = $2,
-        AND status = 1
+            product_id = $2
+            AND status = 1
     `)
     
     query := db.Rebind(buff.String())
     db.MustExec(
         query,
-        prod_id,
-        Now())
+        Now(),
+        prod_id)
 }
 
 func UpdateCron(prod_id int64, cron_type string){
@@ -134,4 +149,106 @@ func UpdateCron(prod_id int64, cron_type string){
     
     query := db_cron.Rebind(buff.String())
     db_cron.MustExec(query, Now(), prod_id, cron_type)
+}
+
+
+func UpdateWsProduct(input *ProductInput, current *ProductInput){
+    
+    //if category not updated 
+    if input.ChildCatId == 0{
+        input.ChildCatId = current.ChildCatId
+    }
+    
+    //if min order not updated
+    if input.MinOrder == 0{
+        input.MinOrder = current.MinOrder
+    }
+    
+    //if price currency not updated
+    if input.PriceCurrency == 0{
+        input.PriceCurrency = current.PriceCurrency
+    }
+    
+    //if price not updated
+    if input.NormalPrice == 0{
+        input.NormalPrice = current.NormalPrice
+    } 
+    
+    //if any price updated, set last updated price
+    if input.PriceCurrency == 0 || input.NormalPrice == 0{
+        input.LastPrcUpdate = current.LastPrcUpdate
+    } else {
+        input.LastPrcUpdate = Now()
+    }
+    
+    if input.Weight.Unit == 0 {
+        input.Weight.Unit = current.Weight.Unit
+    }
+    
+    if input.Weight.Numeric == 0{
+        input.Weight.Numeric = current.Weight.Numeric
+    }
+    
+    if input.Insurance == -1{
+        input.Insurance = current.Insurance
+    }
+    
+    if input.ShortDesc == ""{
+        input.ShortDesc = current.ShortDesc
+    }
+    
+    if input.Condition == 0{
+        input.Condition = current.Condition
+    }
+    
+    if input.Returnable == -1{
+        input.Returnable = current.Returnable
+    }
+    
+    buff := bytes.NewBufferString(`
+        UPDATE ws_product 
+        SET 
+            status          = $1,
+            child_cat_id    = $2,
+            min_order       = $3,
+            price_currency  = $4,
+            normal_price    = $5,
+            weight_unit     = $6,
+            weight          = $7,
+            must_insurance  = $8,
+            short_desc      = $9,
+            condition       = $10,
+            update_solr     = $11
+        WHERE
+            product_id = $12
+    `)
+    
+    query := db.Rebind(buff.String())
+    _, err := db.Query(
+        query,
+        input.Status,
+        input.ChildCatId,
+        input.MinOrder,
+        input.PriceCurrency,
+        input.NormalPrice,
+        input.Weight.Unit,
+        input.Weight.Numeric,
+        input.Insurance,
+        input.ShortDesc,
+        input.Condition,
+        Now(),
+        input.ProductId)
+    
+    checkErr(err, "fail update")
+}
+
+
+func delete_redis(key string){
+     rds := redis.NewClient(&redis.Options{
+        Addr        : redisconn.Redis_89_5,
+        Password    : "", // no password set
+        DB          : 0,  // use default DB
+    })
+   
+    rds.Del(key)
 }
