@@ -43,8 +43,8 @@ func main(){
     
     router.GET("/ping", product.Ping)
     
-    router.GET("/", product.IndexHandler)
-    router.POST("/create", product.CreateHandler)
+    router.POST("/products", product.CreateHandler)
+    router.PATCH("/products/:id", product.UpdateHandler)
     
     log.Fatal(http.ListenAndServe(config.Server.Host, router))
 }

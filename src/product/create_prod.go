@@ -17,21 +17,36 @@ func CreateProduct(input *ProductInput){
     //filter blacklist
     if res, word:=CheckBlacklist(input.ProductName, BlacklistRule["PRD_RULE_BAN_KEYWORD"]); res == true {
         input.Status = -2
+        input.ProductStatus = "Banned"
         input.PendingReason = "Warned Product Description because keyword " + word
         input.PendingStatus = 1
     } else if res, word:=CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_BAN_KEYWORD"]); res == true {
         input.Status = -2
+        input.ProductStatus = "Banned"
         input.PendingReason = "Warned Product Description because keyword " + word
         input.PendingStatus = 2
     } else if res, word:=CheckBlacklist(input.ProductName, BlacklistRule["PRD_RULE_WARN_KEYWORD"]); res == true {
         input.Status = -1
+        input.ProductStatus = "Warned"
         input.PendingReason = "Warned Product Description because keyword " + word
         input.PendingStatus = 1
     } else if res, word:=CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_WARN_KEYWORD"]); res == true {
         input.Status = -1
+        input.ProductStatus = "Warned"
         input.PendingReason = "Warned Product Description because keyword " + word
         input.PendingStatus = 2
     }
+    
+    //pirated product filter
+    if CheckBajakan(input.NormalPrice, input.ChildCatId) == true {
+        input.Status = -1
+        input.ProductStatus = "Warned"
+        input.PendingReason = "Warned because suspected as pirated product"
+        input.PendingStatus = 3
+    }
+    
+    //set product status
+    SetProductStatus(input)
     
     //insert product into ws_product
     input.ProductId = InsertProduct(input)
@@ -44,6 +59,7 @@ func CreateProduct(input *ProductInput){
     //add to etalase
     if input.AddToEtalase == 1 && input.Status != -1 && input.Status != -2 && input.Status != 3 {
         AddToEtalase(input.ProductId, input.EtalaseId)
+        InsertCron(input.ProductId, "price_alert_product")
     }
     
     //add to catalog
@@ -60,7 +76,7 @@ func CreateProduct(input *ProductInput){
     }
     
     //create product alias
-    CreateAlias(input.ProductId, input.ProductName, input.ShopId)
+    input.Alias = CreateAlias(input.ProductId, input.ProductName, input.ShopId)
     
     //insert wholesale price
     if len(input.Wholesale) > 0{
@@ -98,7 +114,7 @@ func CreateProduct(input *ProductInput){
     AddProductLog(input.ProductId, input.UserId)
     
     //add product history
-    AddProductHistory(input)
+    // AddProductHistory(input)
     
     //scan any phone number in description and insert to mongo for security team to use it later
     ScanPhoneNumber(input.ShortDesc, input.ProductId)
@@ -222,7 +238,7 @@ func AddToCatalog(product *ProductInput){
         Now())
 }
 
-func CreateAlias(prod_id int64, prod_name string, shop_id int64){
+func CreateAlias(prod_id int64, prod_name string, shop_id int64) string{
     //check alias
     var count int
     var loop int
@@ -288,12 +304,14 @@ func CreateAlias(prod_id int64, prod_name string, shop_id int64){
     
     rds.Del("svq:aliasing-id_product-"+key+"-"+string(shop_id))
     rds.Close()
+    
+    return key
 }
 
 func AddWholesalePrice(product *ProductInput){
     wholesale := make(map[string]int64)
     
-    var prd_prc_id int64
+    var prd_prc_id, prd_id int64
     var loop int = 1
     for _, ws := range product.Wholesale {
         wholesale["qty_min_"+strconv.Itoa(loop)] = ws.Min
@@ -302,56 +320,115 @@ func AddWholesalePrice(product *ProductInput){
         loop++
     }
     
-    now := Now()
+    //check if whole saleprice is exist
+    buff := bytes.NewBufferString(`
+        SELECT 
+            product_id,
+            prd_prc_id
+        FROM ws_prd_prc
+        WHERE 
+            product_id = $1
+    `)
+    query := db.Rebind(buff.String())
+    db.QueryRow(query, product.ProductId).Scan(&prd_id, &prd_prc_id)
     
-    //insert into ws_prd_prc
-    err := db.QueryRow(`
-        INSERT INTO ws_prd_prc
-            (
-                product_id,
-                create_by,
-                create_time,
-                qty_min_1,
-                qty_max_1,
-                prd_prc_1,
-                qty_min_2,
-                qty_max_2,
-                prd_prc_2,
-                qty_min_3,
-                qty_max_3,
-                prd_prc_3,
-                qty_min_4,
-                qty_max_4,
-                prd_prc_4,
-                qty_min_5,
-                qty_max_5,
-                prd_prc_5
-            ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-        RETURNING prd_prc_id`,
-        product.ProductId,
-        product.UserId,
-        now,
-        wholesale["qty_min_1"],
-        wholesale["qty_max_1"],
-        wholesale["prd_prc_1"],
-        wholesale["qty_min_2"],
-        wholesale["qty_max_2"],
-        wholesale["prd_prc_2"],
-        wholesale["qty_min_3"],
-        wholesale["qty_max_3"],
-        wholesale["prd_prc_3"],
-        wholesale["qty_min_4"],
-        wholesale["qty_max_4"],
-        wholesale["prd_prc_4"],
-        wholesale["qty_min_5"],
-        wholesale["qty_max_5"],
-        wholesale["prd_prc_5"]).Scan(&prd_prc_id)
-    
-    if err != nil {
-        checkErr(err, "fail Insert wholesale in postgres")
+    if prd_id != 0 && prd_prc_id != 0{
+        //update
+        buff := bytes.NewBufferString(`
+            UPDATE ws_prd_prc
+            SET
+                update_time = $1,
+                qty_min_1   = $2,
+                qty_max_1   = $3,
+                prd_prc_1   = $4,
+                qty_min_2   = $5,
+                qty_max_2   = $6,
+                prd_prc_2   = $7,
+                qty_min_3   = $8,
+                qty_max_3   = $9,
+                prd_prc_3   = $10,
+                qty_min_4   = $11,
+                qty_max_4   = $12,
+                prd_prc_4   = $13,
+                qty_min_5   = $14,
+                qty_max_5   = $15,
+                prd_prc_5   = $16
+            WHERE
+                product_id      = $17,
+                AND prd_prc_id  = $18
+        `)
+        query := db.Rebind(buff.String())
+        db.MustExec(
+            query,
+            Now(),
+            wholesale["qty_min_1"],
+            wholesale["qty_max_1"],
+            wholesale["prd_prc_1"],
+            wholesale["qty_min_2"],
+            wholesale["qty_max_2"],
+            wholesale["prd_prc_2"],
+            wholesale["qty_min_3"],
+            wholesale["qty_max_3"],
+            wholesale["prd_prc_3"],
+            wholesale["qty_min_4"],
+            wholesale["qty_max_4"],
+            wholesale["prd_prc_4"],
+            wholesale["qty_min_5"],
+            wholesale["qty_max_5"],
+            wholesale["prd_prc_5"],
+            product.ProductId,
+            prd_prc_id)
+        
     } else {
-        UpsertWholesaleMongo(product.UserId, product.ProductId, prd_prc_id, wholesale)
+        //insert into ws_prd_prc
+        err := db.QueryRow(`
+            INSERT INTO ws_prd_prc
+                (
+                    product_id,
+                    create_by,
+                    create_time,
+                    qty_min_1,
+                    qty_max_1,
+                    prd_prc_1,
+                    qty_min_2,
+                    qty_max_2,
+                    prd_prc_2,
+                    qty_min_3,
+                    qty_max_3,
+                    prd_prc_3,
+                    qty_min_4,
+                    qty_max_4,
+                    prd_prc_4,
+                    qty_min_5,
+                    qty_max_5,
+                    prd_prc_5
+                ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            RETURNING prd_prc_id`,
+            product.ProductId,
+            product.UserId,
+            Now(),
+            wholesale["qty_min_1"],
+            wholesale["qty_max_1"],
+            wholesale["prd_prc_1"],
+            wholesale["qty_min_2"],
+            wholesale["qty_max_2"],
+            wholesale["prd_prc_2"],
+            wholesale["qty_min_3"],
+            wholesale["qty_max_3"],
+            wholesale["prd_prc_3"],
+            wholesale["qty_min_4"],
+            wholesale["qty_max_4"],
+            wholesale["prd_prc_4"],
+            wholesale["qty_min_5"],
+            wholesale["qty_max_5"],
+            wholesale["prd_prc_5"]).Scan(&prd_prc_id)
+        
+        if err != nil {
+            checkErr(err, "fail Insert wholesale in postgres")
+        }
     }
+
+    UpsertWholesaleMongo(product.UserId, product.ProductId, prd_prc_id, wholesale)
 }
 
 func UpsertWholesaleMongo(user_id int64, prod_id int64, prd_prc_id int64, wholesale map[string]int64){
@@ -587,6 +664,36 @@ func ScanPhoneNumber(desc string, prod_id int64){
         
         err := cmgo.Insert(pnumber)
         checkErr(err, "Fail insert scanned phone number in mongodb")
+    }
+}
+
+func GetProductUri(product *ProductInput) string{
+    
+    //get shop domain
+    buff := bytes.NewBufferString(`
+        SELECT domain 
+        FROM ws_shop
+        WHERE shop_id = $1
+    `)
+    query := db.Rebind(buff.String())
+    
+    var domain string
+    err := db.QueryRow(query, product.ShopId).Scan(&domain)
+    checkErr(err, "Failed to get shop domain")
+    domain = "/"+domain+"/"+product.Alias
+    
+    return domain
+}
+
+func SetProductStatus(product *ProductInput){
+    if product.Status != -1 && product.Status != -2 {
+        if product.AddToEtalase == 1 {
+            product.Status = 1
+            product.ProductStatus = "Active"
+        } else {
+            product.Status = 3
+            product.ProductStatus = "Warehouse"
+        }
     }
 }
 
