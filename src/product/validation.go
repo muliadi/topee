@@ -394,6 +394,11 @@ func ValidateUpdate(product *ProductInput) (ProductInput, []Error, error){
             changes++
         }
         
+        //if any price is updated
+        if product.PriceCurrency != 0 || product.NormalPrice != 0{
+            changes++
+        }
+        
         //if price currency is updated
         if product.PriceCurrency != 0 && product.PriceCurrency != 1 && product.PriceCurrency != 2{
             error.Source.Pointer    = "/data/attributes/price_currency"

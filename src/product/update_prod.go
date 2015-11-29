@@ -2,7 +2,7 @@ package product
 
 import(
     "bytes"
-    // "fmt"
+    "fmt"
     // "time"
     "strconv"
     // "regexp"
@@ -69,11 +69,11 @@ func UpdateProduct(input *ProductInput, current *ProductInput){
         UpsertPendingReason(input)
     }
     
-    if catalog is changed
+    // if catalog is changed
     if input.AddToCatalog == 0{
-        //remove from catalog
+        // remove from catalog
         RemoveFromCatalog(input.ProductId)
-    } else {
+    } else if input.AddToCatalog == 1{
         //move to another catalog
         RemoveFromCatalog(input.ProductId)
         res_ctg_prd_desc, _ := CheckBlacklist(input.ShortDesc, BlacklistRule["PRD_RULE_CATALOG_BLACKLIST"])
@@ -110,9 +110,12 @@ func UpdateProduct(input *ProductInput, current *ProductInput){
     
     UpdateWsProduct(input, current)
     
-    delete_redis("dir_product:view_list:p_"+strconv.FormatInt(input.ProductId, 16))
-    delete_redis("dir_product:view_gallery:p_"+strconv.FormatInt(input.ProductId, 16))
-    delete_redis("class:product:p_"+strconv.FormatInt(input.ProductId, 16))
+    prod_id_string := strconv.FormatInt(input.ProductId, 10)
+    fmt.Println(prod_id_string)
+    
+    delete_redis("dir_product:view_list:p_"+prod_id_string)
+    delete_redis("dir_product:view_gallery:p_"+prod_id_string)
+    delete_redis("class:product:p_"+prod_id_string)
 
 }
 
@@ -244,11 +247,10 @@ func UpdateWsProduct(input *ProductInput, current *ProductInput){
 
 
 func delete_redis(key string){
-     rds := redis.NewClient(&redis.Options{
+    rds := redis.NewClient(&redis.Options{
         Addr        : redisconn.Redis_89_5,
         Password    : "", // no password set
         DB          : 0,  // use default DB
     })
-   
     rds.Del(key)
 }

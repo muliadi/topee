@@ -572,7 +572,7 @@ func SetProductStatRedis(prod_id int64, data map[string]string){
         DB          : 0,  // use default DB
     })
     
-    var key string = "product_stats_hash:"+strconv.FormatInt(prod_id, 16)
+    var key string = "product_stats_hash:"+strconv.FormatInt(prod_id, 10)
     for field, value := range data {
         rds.HMSet(key, field, value)
     }
@@ -590,7 +590,7 @@ func AddBroadcast(prod_id int64, shop_id int64){
         Score       : float64(time.Now().Unix()),
         Member      : prod_id,
     }
-    rds.ZAdd("list:feed_product:"+strconv.FormatInt(shop_id, 16), value)
+    rds.ZAdd("list:feed_product:"+strconv.FormatInt(shop_id, 10), value)
     
     //fave_product_broadcast
     keymap := map[int]string{
@@ -600,7 +600,7 @@ func AddBroadcast(prod_id int64, shop_id int64){
     }
     key := keymap[(int(prod_id) % 3)+1]
     
-    shop_prod := strconv.FormatInt(shop_id, 16)+"-"+strconv.FormatInt(prod_id, 16)
+    shop_prod := strconv.FormatInt(shop_id, 10)+"-"+strconv.FormatInt(prod_id, 10)
     rds.LRem(key, 0, shop_prod)
     rds.LPush(key, shop_prod)
 }
